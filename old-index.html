@@ -1,0 +1,1035 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Product Comparison MVP</title>
+  <link rel="stylesheet" href="main.css">
+  <link rel="stylesheet" href="output.css">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body class="bg-gray-200 min-h-screen flex flex-col p-6">
+  <h1 class="text-3xl font-bold mb-6">🔍 Product Comparison</h1>
+  <h1 class="text-3xl font-bold text-blue-600">Hello Tailwind CSS!</h1>
+
+  <!-- Search Form -->
+  <div class="flex">
+    <div class="flex w-full max-w-lg h-full">
+      <input id="queryInput" type="text"
+        placeholder="Search shoes, mobiles, vehicles..."
+        class="flex-1 p-3 border border-gray-300 rounded-l-xl focus:ring-2 focus:ring-blue-400 outline-none" />
+      <button id="searchBtn"
+        class="bg-blue-500 text-white px-6 rounded-r-xl hover:bg-blue-600  outline-none  transition">
+        Search
+      </button>
+    </div>
+    <!-- Add Product Section -->
+    <div class="flex justify-end items-center gap-4 w-full" id="addProductSectionContainer">
+      <button id="showAddProduct" class="hidden p-3 bg-green-500 hover:bg-green-600 text-white transitiontext-white rounded-lg">Add New Product</button>
+
+      <div id="addProductSection" class="flex hidden">
+        <input id="newProductInput" type="text" placeholder="Enter new product..."
+          class="p-3 border border-gray-300 rounded-l-xl focus:ring-2 focus:ring-green-400 outline-none" />
+        <button id="addProductSearchBtn"
+          class="bg-blue-500 p-3 text-white rounded-r-xl hover:bg-blue-600 transition">
+          Add Product
+        </button>
+      </div>
+      <p id="innderSearchLoader" class='text-gray-500 hidden'>⏳ Searching...</p>
+    </div>
+
+  </div>
+
+  <!-- Results -->
+  <div class="mt-8 w-full bg-white shadow-lg rounded-xl p-6">
+    <div class="text-center" id="noDataSection">
+      <p class="font-bold">
+        Products data will be shown here
+      </p>
+    </div>
+    <div id="results">
+    </div>
+  </div>
+
+  <!-- Beta Feedback Survey Button -->
+  <div id="surveyButtonContainer" class="hidden text-center mt-6">
+    <div class="mb-4 mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200 text-left">
+      <h4><strong>Instrunctions:</strong></h4>
+      <ul>
+        <li>The table shows real product data on the left and a comparison score (0–10) on the right.</li>
+        <li>Use the "How to Compare" dropdown to switch between “Higher is better” or “Lower is better.”</li>
+        <li>Example: For product weight → Lower is better → the lightest product scores 10/10.</li>
+        <li>Example: For battery life → Higher is better → the longest battery gets 10/10.</li>
+        <li>You can delete products (columns) or attributes (rows) using the ❌ buttons.</li>
+        <li>Click “Add Product” to include another model.</li>
+        <li>Click “Add Attribute” to track something new (e.g. Warranty, Color options).</li>
+      </ul>
+    </div>
+    <a id="surveyButton" href="https://docs.google.com/forms/d/e/1FAIpQLSeG_UlR-UfF_lItIi4zESdwZZXkkmtUy1DuDy2NMTFaCw_V_Q/viewform" target="_blank"
+      class="inline-block bg-orange-600 hover:bg-orange-700 text-white font-semibold text-lg px-6 py-3 rounded-xl shadow-lg transition">
+      🚀 Take the Beta Feedback Survey Here
+    </a>
+  </div>
+
+
+  <script>
+
+     function stripScorePrefix(text) {
+        // Remove existing "N – " prefix if present
+        const m = text.match(/^\s*\d{1,2}\s*[–-]\s*/);
+        return m ? text.slice(m[0].length).trim() : text.trim();
+      }
+
+      function extractNumeric(raw) {
+        // Pull the first number; drop commas. Works for "$1,299", "16 GB", "1.25 kg", "14-inch", "90Hz"
+        const cleaned = raw.replace(/,/g, '');
+        const m = cleaned.match(/-?\d+(\.\d+)?/);
+        return m ? parseFloat(m[0]) : null;
+      }
+
+      // Helper: reuse existing extractor (you already have this above)
+      function getNumeric(raw) {
+        const n = extractNumeric(String(raw ?? ""));
+        return n === null ? NaN : n;
+      }
+
+      function buildImportanceCellHTML(value) {
+        return `
+          <input 
+            type="number" 
+            class="importance-input border px-1 py-0.5 rounded text-md text-center"
+            value="${value}" 
+            min="0" max="10"
+            oninput="handleImportanceChange(this)" 
+            onblur="finalizeImportance(this)"
+          />
+        `;
+      }
+
+      // Build the innerHTML for a product cell consistently
+      function buildScoreCellHTML(rawValue, scoreValue) {
+        return `
+          <span class="raw-value">${rawValue || "-"}</span>
+          <input 
+            type="number" 
+            class="score-input border px-1 py-0.5 rounded text-md text-center ml-2"
+            value="${scoreValue || 0}" 
+            min="0" max="10"
+            oninput="handleScoreChange(this)" 
+            onblur="finalizeScore(this)"
+          />
+        `;
+      }
+
+
+      function handleScoreChange(input) {
+        const td = input.closest("td");
+        if (!td) return;
+
+        let val = input.value.trim();
+        if (val === "") {
+          td.setAttribute("data-score", "0");
+          updateFooterTotals();
+          return;
+        }
+
+        let newScore = parseInt(val, 10);
+        if (isNaN(newScore)) newScore = 0;
+        if (newScore > 10) newScore = 10;
+
+        td.setAttribute("data-score", newScore);
+        updateFooterTotals();
+      }
+      function finalizeScore(input) {
+        let val = parseInt(input.value, 10);
+        if (isNaN(val) || val < 0) val = 0;
+        if (val > 10) val = 10;
+        input.value = val;
+      }
+
+      function handleImportanceChange(input) {
+        // Allow empty while typing
+        const td = input.closest("td");
+        if (!td) return;
+
+        let val = input.value.trim();
+        if (val === "") {
+          td.setAttribute("data-importance", "0"); 
+          updateFooterTotals();
+          return;
+        }
+
+        let newImportance = parseInt(val, 10);
+        if (isNaN(newImportance)) newImportance = 0;
+        if (newImportance > 10) newImportance = 10;
+
+        td.setAttribute("data-importance", newImportance);
+        updateFooterTotals();
+      }
+
+      function finalizeImportance(input) {
+        // Only fix value when user leaves the field
+        let val = parseInt(input.value, 10);
+        if (isNaN(val) || val < 0) val = 0;
+        if (val > 10) val = 10;
+        input.value = val;
+      }
+
+function recomputeScores(startingIndex = 2) {
+  const table = document.querySelector("#results table");
+  if (!table) return;
+
+  const rows = table.querySelectorAll("tr");
+  rows.forEach((row, i) => {
+    if (i < startingIndex || row.id === "addAttributeRow") return;
+
+    // fresh score per row
+    let finalScore = 10;  
+
+    const compareType = row.cells[2]?.querySelector("select")?.value || "higher";
+
+    const productCells = Array.from(row.cells).slice(3);
+
+    const pairs = productCells.map(td => {
+      const raw = td.dataset.raw || "";
+      const numeric = getNumeric(raw);
+      return { td, raw, numeric };
+    });
+
+    const numericList = pairs.filter(p => Number.isFinite(p.numeric)).map(p => p.numeric);
+
+    if (numericList.length === 0) {
+      pairs.forEach(p => {
+        p.td.innerHTML = buildScoreCellHTML(p.raw, finalScore);
+        p.td.dataset.raw = p.raw;
+        p.td.dataset.score = finalScore;
+      });
+      return;
+    }
+
+    const uniqueSorted = Array.from(new Set(numericList)).sort((a, b) =>
+      compareType === "lower" ? a - b : b - a
+    );
+    const M = uniqueSorted.length;
+
+    pairs.forEach(p => {
+      if (Number.isFinite(p.numeric)) {
+        if (M === 1) {
+          finalScore = 10;
+        } else {
+          const rankIndex = uniqueSorted.indexOf(p.numeric);
+          finalScore = Math.round(10 - (rankIndex * 9) / (M - 1));
+          finalScore = Math.max(1, Math.min(10, finalScore));
+        }
+      }
+
+      p.td.innerHTML = buildScoreCellHTML(p.raw, finalScore);
+      p.td.dataset.raw = p.raw;
+      p.td.dataset.score = finalScore;
+    });
+  });
+
+  updateFooterTotals();
+}
+
+
+
+
+// Delegated click handler for score editing + saving (single global listener)
+document.addEventListener("click", (e) => {
+  // Show input when clicking score text
+  if (e.target.classList && e.target.classList.contains("score-text")) {
+    const td = e.target.closest("td");
+    if (!td) return;
+    const editSpan = td.querySelector(".edit-score");
+    if (!editSpan) return;
+
+    // hide score text, show editor
+    e.target.classList.add("hidden");
+    editSpan.classList.remove("hidden");
+
+    const input = editSpan.querySelector(".score-input");
+    // if score was "-" (non-numeric), default to 1 for the input
+    const currentText = e.target.innerText.trim();
+    if (currentText === "-" || !input.value) {
+      input.value = td.getAttribute("data-score") && Number(td.getAttribute("data-score")) > 0
+        ? td.getAttribute("data-score")
+        : 1;
+    }
+    input.focus();
+    return;
+  }
+
+  // Save button click (works for both numeric and previously non-numeric)
+  if (e.target.classList && e.target.classList.contains("save-score")) {
+    const td = e.target.closest("td");
+    if (!td) return;
+    const input = td.querySelector(".score-input");
+    let newScore = parseInt(input.value, 10);
+    if (isNaN(newScore) || newScore < 1) newScore = 1;
+    if (newScore > 10) newScore = 10;
+
+    const rawValue = td.getAttribute("data-raw") || td.innerText.split("–")[0].trim().replace(/<[^>]+>/g, "").trim();
+
+    // rebuild cell HTML and attributes
+    td.innerHTML = buildScoreCellHTML(rawValue, String(newScore), newScore);
+    td.setAttribute("data-raw", rawValue);
+    td.setAttribute("data-score", newScore);
+
+    updateFooterTotals();
+    return;
+  }
+});
+function addScoreEditButtons() {
+  const table = document.querySelector("#results table");
+  if (!table) return;
+
+  const rows = table.querySelectorAll("tr");
+  rows.forEach((row, i) => {
+    if (i === 0 || row.id === "addAttributeRow") return;
+
+    const productCells = Array.from(row.cells).slice(3); // skip Attribute/Importance/How-to-Compare
+    productCells.forEach(td => {
+      const scoreSpan = td.querySelector(".score-text");
+      const editSpan = td.querySelector(".edit-score");
+      const input = td.querySelector(".score-input");
+      const saveBtn = td.querySelector(".save-score");
+
+      if (!scoreSpan || !editSpan || !input || !saveBtn) return;
+
+      // Show input when clicking score
+      scoreSpan.addEventListener("click", () => {
+        scoreSpan.classList.add("hidden");
+        editSpan.classList.remove("hidden");
+      });
+
+      // Save on tick
+      saveBtn.addEventListener("click", () => {
+        let newScore = parseInt(input.value, 10);
+        if (isNaN(newScore) || newScore < 1) newScore = 1;
+        if (newScore > 10) newScore = 10;
+
+        // Get the raw value from before the "–"
+        const oldRaw = td.querySelector(".score-text") 
+          ? td.innerHTML.split("–")[0].trim()
+          : "";
+
+        // Clean any leftover HTML tags
+        const rawValue = oldRaw.replace(/<[^>]+>/g, "").trim();
+
+        // Rebuild cell with value on left and new score on right
+        td.innerHTML = `
+          ${rawValue} – 
+          <span class="score-text">${newScore}</span>
+          <span class="edit-score hidden">
+            <input type="number" class="score-input border px-1 py-0.5 rounded text-md text-center" value="${newScore}" min="1" max="10" />
+            <button class="save-score">✔️</button>
+          </span>
+        `;
+
+        // Update data-score attribute for footer calculation
+        td.setAttribute("data-score", newScore);
+
+        // addScoreEditButtons(); // rebind events
+        updateFooterTotals();  // ✅ recalc footer totals after edit
+      });
+    });
+  });
+}
+  
+const resultsDiv = document.getElementById("results");
+
+// -------- Initial Search --------
+let lastQuery = ""; // store the original search query
+
+document.getElementById("searchBtn").addEventListener("click", async () => {
+  const query = document.getElementById("queryInput").value.trim();
+  if (!query) {
+    resultsDiv.innerHTML = "<p class='text-red-500'>⚠️ Please enter a product to search.</p>";
+    document.getElementById("surveyButtonContainer").classList.add("hidden");
+    return;
+  }
+  lastQuery = query; // store query for later use in addProduct
+  document.getElementById("noDataSection").classList.add("hidden");
+  resultsDiv.innerHTML = "<p class='text-gray-500 text-center'>⏳ Searching...</p>";
+  document.getElementById("surveyButtonContainer").classList.add("hidden"); // hide while searching
+
+  try {
+    const res = await fetch("/compare", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query })
+    });
+    const data = await res.json();
+    console.log("initial data", data);
+
+    if (data.tablePart && data.analysisPart) {
+      // Render table
+      resultsDiv.innerHTML = `<div class="overflow-x-auto">${marked.parse(data.tablePart)}</div>`;
+
+      const table = document.querySelector("#results table");
+      const rows = table.querySelectorAll("tbody tr");
+
+      // skip headers, only apply to product rows
+      rows.forEach((row, i) => {
+        if (i < 0 || row.id === "addAttributeRow") return; // just in case
+
+        const productCells = Array.from(row.cells).slice(3); // product cols only
+        productCells.forEach(td => {
+          const raw = td.innerText.trim();
+          td.innerHTML = buildScoreCellHTML(raw, 10); // start with default score
+          td.setAttribute("data-raw", raw);
+          td.setAttribute("data-score", 10);
+        });
+      });
+
+      addAttributeRow();
+      addEditButtons(1);
+      addDeleteButtons();
+      // addScoreEditButtons();
+      addCompareDropdowns();
+      recomputeScores(1);
+      addColumnDeleteButtons();
+      // deleteColumn();
+      updateFooterTotals();
+
+      // Render or update analysis
+      let analysisBox = document.querySelector("#analysisBox");
+      if (!analysisBox) {
+        analysisBox = document.createElement("div");
+        analysisBox.id = "analysisBox";
+        analysisBox.className = "mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200";
+        resultsDiv.appendChild(analysisBox);
+      }
+      analysisBox.innerHTML = `<strong>Analysis:</strong> ${data.analysisPart}`;
+
+      document.getElementById("showAddProduct").classList.remove("hidden");
+      document.getElementById("surveyButtonContainer").classList.remove("hidden"); // ✅ show survey button
+
+      appendNewSubColRow();
+
+    }
+  } catch (err) {
+    console.error(err);
+    resultsDiv.innerHTML = "<p class='text-red-500'>⚠️ Error fetching results.</p>";
+  }
+});
+
+function addCompareDropdowns() {
+  const table = document.querySelector("#results table");
+  const tbody = table.querySelector("tbody");
+
+  for (let row of tbody.rows) {
+    const compareCell = row.cells[2];
+    if (!compareCell) continue;
+
+    if (!compareCell.querySelector("select")) {
+      const currentValue = compareCell.textContent.trim();
+      compareCell.innerHTML = `
+        <select class="compare-select border rounded px-1 py-0.5 text-sm">
+          <option value="higher" ${/higher/i.test(currentValue) ? "selected" : ""}>Higher is better</option>
+          <option value="lower" ${/lower/i.test(currentValue) ? "selected" : ""}>Lower is better</option>
+        </select>
+      `;
+    }
+  }
+  document.querySelectorAll(".compare-select").forEach(sel => {
+    sel.addEventListener("change", () => {
+      recomputeScores();
+    });
+  });
+}
+
+document.addEventListener("change", (e) => {
+  if (e.target && e.target.classList.contains("compare-select")) {
+    recomputeScores();
+  }
+});
+
+
+// -------- Show Add Product Input --------
+document.addEventListener("click", (e) => {
+  if (e.target.id === "showAddProduct") {
+    document.getElementById("addProductSection").classList.remove("hidden");
+    document.getElementById("showAddProduct").classList.add("hidden");
+  }
+});
+
+// -------- add delete button -------- 
+function addDeleteButtons() {
+  const table = document.querySelector("#results table");
+  if (!table) return;
+
+  table.querySelectorAll("tr").forEach((row, i) => {
+    if (i === 0 || row.id === "addAttributeRow") return;
+
+    const cell = row.cells[0]; // attribute column
+    if (!cell) return;
+
+    // Ensure delete button exists
+    if (!cell.querySelector(".delete-attr")) {
+      const delBtn = document.createElement("button");
+      delBtn.className = "delete-attr bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded mr-2 text-xs";
+      delBtn.textContent = "❌";
+      cell.prepend(delBtn);
+    }
+
+    // Ensure attribute text is in <span class="attr-name">
+    if (!cell.querySelector(".attr-name")) {
+      // Get text without icons
+      let text = cell.innerText.replace("❌", "").replace("✏️", "").trim();
+
+      // Rebuild the cell with only delete button + clean span
+      const del = cell.querySelector(".delete-attr");
+      cell.innerHTML = "";
+      if (del) cell.appendChild(del);
+
+      const span = document.createElement("span");
+      span.className = "attr-name";
+      span.textContent = text;
+      cell.appendChild(span);
+    }
+  });
+}
+
+function addColumnDeleteButtons() {
+  const table = document.querySelector("#results table");
+  const firstRow = table.querySelector("thead tr"); // top header row
+
+  // Start from 3rd index (skip Attribute, Importance, How to Compare)
+  for (let i = 3; i < firstRow.cells.length; i++) {
+    const th = firstRow.cells[i];
+
+    // Avoid adding twice
+    if (!th.querySelector(".col-delete-btn")) {
+      const btn = document.createElement("button");
+      btn.textContent = "❌";
+      btn.className = "col-delete-btn bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded mr-2 text-xs float-right";
+      btn.style.cursor = "pointer";
+
+      btn.addEventListener("click", () => {
+        deleteColumn(i);
+      });
+
+      th.appendChild(btn);
+    }
+  }
+}
+
+function deleteColumn(colIndex) {
+  const table = document.querySelector("#results table");
+
+  // Loop through all rows (thead + tbody + tfoot if any)
+  for (let row of table.rows) {
+    if (row.cells[colIndex]) {
+      row.deleteCell(colIndex);
+    }
+  }
+}
+
+document.addEventListener("click", (e) => {
+  if (e.target.classList.contains("delete-attr")) {
+    const row = e.target.closest("tr");
+    if (row) row.remove();
+    updateFooterTotals();
+  }
+});
+
+// -------- Add New Product --------
+document.getElementById("addProductSearchBtn").addEventListener("click", async () => {
+  const newProduct = document.getElementById("newProductInput").value.trim();
+  if (!newProduct) return alert("Enter product name!");
+
+  const table = document.querySelector("#results table");
+  if (!table) return alert("Please run a search first.");
+
+  // Build attribute list from the first column of the table
+  const attributes = [];
+  table.querySelectorAll("tr").forEach((row, i) => {
+    if (i > 0) attributes.push(row.cells[0].innerText.trim()); // skip header row
+  });
+  document.getElementById("innderSearchLoader").classList.remove("hidden");
+  document.getElementById("addProductSection").classList.add("hidden");
+  try {
+    const res = await fetch("/addProduct", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        newProduct,
+        existingAttributes: attributes,
+        originalQuery: lastQuery,
+      }),
+    });
+
+    const data = await res.json();
+    if (!data || !data.productName || !data.values) {
+      console.error("Bad addProduct payload:", data);
+      return alert("❌ Error adding new product");
+    }
+
+    document.getElementById("innderSearchLoader").classList.add("hidden");
+    document.getElementById("showAddProduct").classList.remove("hidden");
+    document.getElementById("addProductSection").classList.add("hidden");
+
+    // Append one new cell per row
+    const rows = table.querySelectorAll("tr");
+rows.forEach((row, i) => {
+  if (i === 0) {
+    // Header row → add product name
+    const th = document.createElement("th");
+    th.textContent = data.productName;
+    row.appendChild(th);
+  } else if (row.id !== "addAttributeRow") {
+    // Use the span.attr-name instead of raw innerText
+    const nameEl = row.querySelector(".attr-name");
+    const cleanAttrName = nameEl ? nameEl.innerText.trim() : row.cells[0].innerText.trim();
+
+    const td = document.createElement("td");
+
+    // Match API keys loosely → strip ❌ / ➕
+    const apiKey = Object.keys(data.values).find(
+      k => k.replace(/[❌➕]/g, "").trim().toLowerCase() === cleanAttrName.toLowerCase()
+    );
+
+    const rawVal = apiKey ? data.values[apiKey] : "";
+
+    td.innerHTML = buildScoreCellHTML(rawVal, 10); // raw + placeholder score
+    td.setAttribute("data-raw", rawVal);
+    td.setAttribute("data-score", 10);
+    row.appendChild(td);
+  }
+});
+
+    // After appending new product column
+    addDeleteButtons();
+    addColumnDeleteButtons();
+    // deleteColumn();
+    addAttributeRow();
+    addEditButtons(1);
+    recomputeScores();
+    // addScoreEditButtons();
+    updateFooterTotals();
+    appendNewSubColRow();
+
+    // 🔄 Update Analysis Section (replace instead of append)
+    let analysisBox = document.querySelector("#analysisBox");
+    if (!analysisBox) {
+      analysisBox = document.createElement("div");
+      analysisBox.id = "analysisBox";
+      analysisBox.className = "mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200";
+      table.parentElement.appendChild(analysisBox);
+    }
+
+    // Always overwrite old analysis with the latest one
+    analysisBox.innerHTML = `<strong>Analysis:</strong> ${data.analysis}`;
+    document.getElementById("newProductInput").value = "";
+
+  } catch (err) {
+    console.error(err);
+    alert("❌ Error adding new product");
+  }
+});
+
+function appendNewSubColRow()
+{
+    const table = document.querySelector("#results table");
+    // Remove old second row if it exists
+    const thead = table.querySelector("thead");
+    if (thead.rows.length > 1) {
+      thead.deleteRow(1);
+    }
+    // Create fresh second header row
+    const secondRow = document.createElement("tr");
+    // Add 3 empty cells for Attribute, Importance, How to Compare
+    secondRow.innerHTML = "<th></th><th></th><th></th>";
+    // Figure out how many product columns exist
+    const productCount = thead.rows[0].cells.length - 3;
+    // Add product sub-headings dynamically
+    for (let i = 0; i < productCount; i++) {
+      secondRow.innerHTML += `
+        <th>
+          <span id='left-heading'>Actual Data</span> <span id='right-heading'>Score (0–10)</span>
+        </th>
+      `;
+    }
+
+    // Append back
+    thead.appendChild(secondRow);
+}
+
+
+// -------- Add Attribute Row --------
+function addAttributeRow() {
+  const table = document.querySelector("#results table");
+  if (!table) return;
+
+  // Remove old row if exists
+  // const oldRow = document.querySelector("#addAttributeRow");
+  // if (oldRow) oldRow.remove();
+
+  const row = table.insertRow(-1); // append at end
+  row.id = "addAttributeRow";
+
+  const cell = row.insertCell(0);
+  console.log('table.rows[0].cells');
+  console.log(table.rows[0].cells.length);
+  // const cellsCOunt = table.rows[0].cells;
+  // cell.colSpan = cellsCOunt;
+  cell.colSpan = 2;
+  
+  // Initial state: just "Add Attribute" button
+  cell.innerHTML = `
+    <div class="flex items-center gap-2 justify-start">
+      <button id="showAddAttribute"
+        class="p-2 bg-purple-500 hover:bg-purple-600 text-white text-sm rounded-lg">
+        ➕ Add New Attribute
+      </button>
+      <p id="innerAttrLoader" class="text-white hidden">⏳ Searching...</p>
+    </div>
+  `;
+  updateFooterTotals();
+}
+
+// -------- Show Add Attribute Input --------
+document.addEventListener("click", (e) => {
+  if (e.target.id === "showAddAttribute") {
+    const row = document.getElementById("addAttributeRow");
+    if (!row) return;
+    const cell = row.cells[0];
+
+    cell.innerHTML = `
+      <div class="flex items-center gap-2">
+        <input id="newAttributeInput" type="text"
+          placeholder="Enter new attribute..."
+          class="p-2 border border-gray-300 rounded-lg flex-1 focus:ring-2 focus:ring-purple-400 outline-none max-w-sm" />
+        <button id="addAttributeBtn"
+          class="bg-purple-500 text-white p-2 text-sm rounded-lg hover:bg-purple-600 transition">
+          ➕ Add Attribute
+        </button>
+        <p id="innerAttrLoader" class="text-white hidden">⏳ Searching...</p>
+      </div>
+    `;
+  }
+});
+
+// -------- Handle Add Attribute Action --------
+document.addEventListener("click", async (e) => {
+  if (e.target.id === "addAttributeBtn") {
+    const newAttr = document.getElementById("newAttributeInput").value.trim();
+    if (!newAttr) return alert("Enter an attribute!");
+
+    const table = document.querySelector("#results table");
+    if (!table) return;
+
+    // ✅ Collect clean product names (strip ❌ and trim)
+    const headerCells = table.rows[0].cells;
+    const products = [];
+    for (let i = 3; i < headerCells.length; i++) {
+      const name = headerCells[i].innerText.replace("❌", "").trim();
+      products.push(name);
+    }
+
+    // Show loader
+    document.getElementById("newAttributeInput").classList.add("hidden");
+    document.getElementById("addAttributeBtn").classList.add("hidden");
+    document.getElementById("innerAttrLoader").classList.remove("hidden");
+
+    try {
+      const res = await fetch("/addAttribute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          newAttribute: newAttr,
+          existingProducts: products,
+          originalQuery: lastQuery,
+        }),
+      });
+
+      const data = await res.json();
+
+      // Insert new row above the "add attribute" row
+      const addRow = document.getElementById("addAttributeRow");
+      const newRow = table.insertRow(addRow.rowIndex);
+
+      // Attribute cell with delete button
+      const attrCell = newRow.insertCell(0);
+      attrCell.innerHTML = `
+        <button class="delete-attr bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded mr-2 text-xs">❌</button>
+        <span class="attr-name">${data.attribute}</span>
+      `;
+
+      // Importance input
+      const impCell = newRow.insertCell(1);
+      impCell.innerHTML = `
+        <input type="number" value="${data.importance ?? 5}" min="1" max="10"
+          class="w-16 border rounded p-1" />
+      `;
+
+
+      // How to Compare dropdown
+      const howCell = newRow.insertCell(2);
+      howCell.innerHTML = `
+        <select class="compare-select border rounded px-1 py-0.5 text-sm">
+          <option value="higher" ${data.howToCompare === "Higher is better" ? "selected" : ""}>Higher is better</option>
+          <option value="lower" ${data.howToCompare === "Lower is better" ? "selected" : ""}>Lower is better</option>
+        </select>
+        `;
+
+      // ✅ Fill product values with correct mapping
+      products.forEach(p => {
+        const raw = data.values[p] ?? ""; // get exact match
+        const td = newRow.insertCell(-1);
+        td.innerHTML = buildScoreCellHTML(raw, "");
+        td.dataset.raw = raw;
+        td.dataset.score = "";
+      });
+
+      // Attach listener to dropdowns so score updates when changed
+      newRow.querySelectorAll(".compare-select").forEach(sel => {
+        sel.addEventListener("change", () => {
+          recomputeScores();
+        });
+      });
+      
+
+      
+      // Restore UI
+      document.getElementById("newAttributeInput").classList.remove("hidden");
+      document.getElementById("addAttributeBtn").classList.remove("hidden");
+      document.getElementById("innerAttrLoader").classList.add("hidden");
+      document.getElementById("newAttributeInput").value = "";
+
+      // Re-append controls
+      addAttributeRow();
+      addEditButtons(2);
+      recomputeScores();
+      // addScoreEditButtons();
+      updateFooterTotals();
+
+    } catch (err) {
+      console.error(err);
+      alert("❌ Error adding attribute");
+      addAttributeRow(); // restore UI even if error
+    }
+  }
+});
+
+
+// -------- Add Edit Buttons --------
+function addEditButtons(startingIndex = 1) {
+  const table = document.querySelector("#results table");
+  if (!table) return;
+
+  table.querySelectorAll("tr").forEach((row, i) => {
+    // ⛔ Skip both header rows + Add Attribute row
+    if (i < startingIndex || row.id === "addAttributeRow") return;
+
+    // Attribute cell (index 0)
+    const attrCell = row.cells[0];
+    if (attrCell) {
+      if (!attrCell.querySelector(".attr-name")) {
+        const text = attrCell.innerText.replace("❌", "").replace("✏️", "").trim();
+        attrCell.innerHTML = `
+          <button class="delete-attr bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded mr-2 text-xs">❌</button>
+          <span class="attr-name">${text}</span>
+        `;
+      }
+    }
+
+    // Importance cell (index 1)
+    const impCell = row.cells[1];
+    if (impCell) {
+      let currentVal = "5"; // default
+
+      const existingInput = impCell.querySelector("input");
+      if (existingInput) {
+        currentVal = existingInput.value.trim() || "5";
+      } else if (impCell.getAttribute("data-importance")) {
+        currentVal = impCell.getAttribute("data-importance");
+      } else if (impCell.innerText.trim() !== "") {
+        currentVal = impCell.innerText.replace("✏️", "").trim();
+      }
+
+      impCell.innerHTML = buildImportanceCellHTML(currentVal);
+      impCell.setAttribute("data-importance", currentVal);
+    }
+  });
+}
+
+
+// Start editing ATTRIBUTE (only swaps .attr-name span)
+document.addEventListener("click", (e) => {
+  if (e.target.classList.contains("edit-attr")) {
+    const cell = e.target.closest("td");
+    const span = cell.querySelector(".attr-name");
+    const current = (span?.innerText || "").trim();
+
+    const input = document.createElement("input");
+    input.type = "text";
+    input.value = current;
+    input.className = "edit-input-attr border px-1 py-0.5 rounded text-sm w-auto";
+
+    span.replaceWith(input);
+    e.target.classList.add("hidden");
+
+    let save = cell.querySelector(".save-attr");
+    if (!save) {
+      save = document.createElement("button");
+      save.className = "save-attr ml-2 text-green-600 hover:text-green-800";
+      save.textContent = "✔️";
+      input.after(save);
+    } else {
+      save.classList.remove("hidden");
+    }
+    input.focus();
+  }
+});
+
+// Save ATTRIBUTE
+document.addEventListener("click", (e) => {
+  if (e.target.classList.contains("save-attr")) {
+    const cell = e.target.closest("td");
+    const input = cell.querySelector(".edit-input-attr");
+    const newVal = (input?.value || "").trim();
+
+    const span = document.createElement("span");
+    span.className = "attr-name";
+    span.textContent = newVal || ""; // allow empty if needed
+    input.replaceWith(span);
+
+    e.target.classList.add("hidden");
+    const editBtn = cell.querySelector(".edit-attr");
+    if (editBtn) editBtn.classList.remove("hidden");
+  }
+});
+
+// Start editing IMPORTANCE (only swaps .importance-text span)
+document.addEventListener("click", (e) => {
+  if (e.target.classList.contains("edit-importance")) {
+    const cell = e.target.closest("td");
+    const span = cell.querySelector(".importance-text") || (() => {
+      const s = document.createElement("span");
+      s.className = "importance-text";
+      s.textContent = cell.innerText.replace("✏️","").trim();
+      cell.innerHTML = "";
+      cell.appendChild(s);
+      return s;
+    })();
+
+    const current = span.innerText.trim();
+    const input = document.createElement("input");
+    input.type = "number";
+    input.value = current;
+    input.min = "0";        
+    input.max = "10";       
+    input.maxLength = 2;    
+    input.className = "edit-input-importance border px-1 py-0.5 rounded text-md text-center";
+
+    // Prevent typing > 2 digits
+    input.addEventListener("input", () => {
+      if (input.value.length > 2) {
+        input.value = input.value.slice(0, 2);
+      }
+    });
+
+    span.replaceWith(input);
+    e.target.classList.add("hidden");
+
+    let save = cell.querySelector(".save-importance");
+    if (!save) {
+      save = document.createElement("button");
+      save.className = "save-importance ml-2 text-green-600 hover:text-green-800";
+      save.textContent = "✔️";
+      input.after(save);
+    } else {
+      save.classList.remove("hidden");
+    }
+    input.focus();
+  }
+});
+
+// Save IMPORTANCE
+document.addEventListener("click", (e) => {
+  if (e.target.classList.contains("save-importance")) {
+    const cell = e.target.closest("td");
+    const input = cell.querySelector(".edit-input-importance");
+    let newVal = input?.value.trim();
+
+    // ✅ Validation
+    if (!/^\d{1,2}$/.test(newVal) || Number(newVal) < 0 || Number(newVal) > 10) {
+      alert("Please enter a number between 0 and 10 (max 2 digits).");
+      input.focus();
+      return;
+    }
+
+    const span = document.createElement("span");
+    span.className = "importance-text";
+    span.textContent = newVal;
+    input.replaceWith(span);
+
+    e.target.classList.add("hidden");
+    const editBtn = cell.querySelector(".edit-importance");
+    if (editBtn) editBtn.classList.remove("hidden");
+  }
+});
+
+// ------------------------------------
+// -------- Update Footer Totals --------
+function updateFooterTotals() {
+  const table = document.querySelector("#results table");
+  if (!table) return;
+
+  // Remove old footer if exists
+  const oldFoot = table.querySelector("tfoot");
+  if (oldFoot) oldFoot.remove();
+
+  const tfoot = table.createTFoot();
+  const row = tfoot.insertRow(0);
+
+  // First 3 cols (Attribute, Importance, How-to-Compare) left empty
+  for (let i = 0; i < 3; i++) {
+    row.insertCell(i).textContent = "";
+  }
+
+  // Collect product scores
+  const headerCells = table.rows[0].cells;
+  const productCount = headerCells.length - 3; // products start from col 3
+  const totals = new Array(productCount).fill(0);
+
+  // Loop attributes (skip header + addAttributeRow)
+  for (let i = 1; i < table.rows.length; i++) {
+    const r = table.rows[i];
+    if (r.id === "addAttributeRow") continue;
+
+    // const importance = parseFloat(r.cells[1]?.innerText.trim()) || 0;
+    const impCell = r.cells[1];
+    let importance = 0;
+    if (impCell) {
+      const input = impCell.querySelector("input");
+      if (input) {
+        importance = parseFloat(input.value) || 0;
+      } else {
+        importance = parseFloat(impCell.getAttribute("data-importance")) || 0;
+      }
+    }
+
+    for (let j = 0; j < productCount; j++) {
+      const td = r.cells[j + 3];
+      if (!td) continue;
+      const score = parseFloat(td.getAttribute("data-score")) || 0;
+      totals[j] += importance * score;
+    }
+  }
+
+  // Render totals beneath each product column
+  for (let j = 0; j < productCount; j++) {
+    const td = row.insertCell(j + 3);
+    td.textContent = totals[j].toFixed(2); // show 2 decimal places
+    td.className = "font-bold text-left";
+  }
+}
+
+
+  </script>
+</body>
+</html>

@@ -1,0 +1,332 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+@import "flowbite/src/themes/default";
+
+/* ---------------- FONTS ---------------- */
+
+@font-face {
+    font-family: 'AeonikBold';
+    src: url('./fonts/Aeonik-Bold.woff2') format('woff2');
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'AeonikRegular';
+    src: url('./fonts/Aeonik-Regular.woff2') format('woff2');
+    font-style: normal;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    background: url('./background.webp');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    font-family: 'AeonikRegular', sans-serif;
+}
+
+/* ---------------- FONT HELPERS ---------------- */
+
+.AeonikBold {
+    font-family: 'AeonikBold', sans-serif;
+}
+
+.AeonikRegular {
+    font-family: 'AeonikRegular', sans-serif;
+}
+
+/* ---------------- INPUT FIELDS ---------------- */
+
+input[type="text"]#queryInput,
+input[type="text"]#queryInput2,
+input#newProductInput {
+    font-family: 'AeonikRegular', sans-serif;
+    font-style: normal;
+    font-weight: 500;
+    font-size: clamp(14px, 2vw, 20px);
+    line-height: 23px;
+}
+
+/* Prevent input overflow */
+input, select, button {
+    max-width: 100%;
+}
+
+/* ---------------- SEARCH BAR RESPONSIVE ---------------- */
+
+.search-bar-wrapper {
+    width: 100%;
+    max-width: 990px;
+    margin: 0 auto;
+}
+
+/* Inside search bars */
+.search-bar-wrapper input {
+    font-size: clamp(14px, 2vw, 18px);
+}
+
+.search-bar-wrapper button {
+    font-size: clamp(14px, 2vw, 20px);
+    padding: clamp(8px, 2vw, 14px) clamp(12px, 3vw, 26px);
+}
+
+/* ---------------- H1 / H2 / TEXT RESPONSIVE ---------------- */
+
+h2 {
+    font-size: clamp(26px, 5vw, 55px);
+    text-align: center;
+}
+
+p {
+    font-size: clamp(14px, 3vw, 24px);
+}
+
+.fixed-tagline {
+    font-size: clamp(12px, 3vw, 20px);
+    padding: clamp(6px, 2vw, 10px) clamp(12px, 3vw, 20px);
+}
+
+/* ---------------- HEADER RESPONSIVE ---------------- */
+
+header {
+    padding-left: clamp(16px, 5vw, 60px);
+    padding-right: clamp(16px, 5vw, 60px);
+}
+
+header img {
+    width: clamp(40px, 10vw, 57px);
+    height: clamp(40px, 10vw, 57px);
+}
+
+header h1 {
+    font-size: clamp(18px, 4vw, 30px);
+}
+
+/* ---------------- SEARCH RESULT TOP ROW ---------------- */
+
+#search-result-section > div > div {
+    width: 100%;
+    /* max-width: 615px; */
+}
+
+/* ---------------- TABLE (KEEP FIXED AS REQUESTED) ---------------- */
+
+#results {
+    margin-top: 45px;
+}
+
+#results table {
+    width: 99%;
+    background-color: white;
+    border-collapse: separate !important;
+    border-spacing: 0px;
+    margin: 5px 5px;
+    box-shadow: 0px 0px 4px 0px #00000040;
+    border-radius: 10px;
+}
+
+/* Alternate rows */
+#results table tr > *:nth-child(odd) {
+    background-color: white;
+    color: #555555;
+}
+
+#results table tr > *:nth-child(even) {
+    background-color: #F5F6FA;
+    color: #555555;
+}
+
+/* First column */
+#results table tr > th:nth-child(1) {
+    padding-left: 54px;
+}
+
+#results table tr > *:nth-child(1) {
+    width: 230px;
+    border-top-left-radius: 10px;
+    border-bottom-left-radius: 10px;
+    text-align: left;
+}
+
+#results table tbody tr > *:nth-child(1) {
+    display: flex;
+    align-items: center;
+    color: #47337F;
+    font-family: 'AeonikRegular', sans-serif;
+    font-weight: 700;
+    font-size: 16px;
+}
+
+/* Second column */
+#results table tr > *:nth-child(2) {
+    width: 170px;
+}
+
+#results table tr > *:last-child {
+    border-top-right-radius: 10px;
+    border-bottom-right-radius: 10px;
+}
+
+th {
+    text-align: left;
+    width: 250px;
+    color: #000000 !important;
+    padding: 20px 20px 0 20px;
+    font-family: 'AeonikRegular', sans-serif;
+    font-weight: 700;
+    font-size: 16px;
+}
+
+th span#right-heading {
+    color: #555555 !important;
+    font-family: 'AeonikRegular', sans-serif;
+    font-weight: 500;
+    font-size: 15px;
+}
+
+/* Table cells */
+td {
+    text-align: left;
+    width: 250px;
+    padding: 20px 20px 10px 20px;
+}
+
+td input {
+    text-align: center;
+    padding: 10px;
+    background: #FFFFFF;
+    box-shadow: 0px 0px 4px rgba(0, 0, 0, 0.25);
+    border-radius: 10px;
+    font-family: 'AeonikRegular';
+    font-weight: 500;
+    font-size: 15px;
+    color: #555555;
+}
+
+/* Select dropdown */
+select.compare-select {
+    padding: 10px;
+    background: #FFFFFF;
+    border-radius: 10px;
+    font-family: 'AeonikRegular';
+    font-weight: 500;
+    font-size: 15px;
+    cursor: pointer;
+    appearance: none;
+    outline: 0;
+}
+
+.custom-select-wrapper {
+    position: relative;
+    display: flex;
+    width: 145px;
+    background: #ffffff;
+    overflow: hidden;
+    border-radius: 10px;
+    box-shadow: 0px 0px 4px rgba(0, 0, 0, 0.25);
+    cursor: pointer;
+}
+
+.custom-select-wrapper::after {
+    content: '\25BC';
+    position: absolute;
+    right: 0;
+    padding-right: 10px;
+    background: #ffffff;
+    pointer-events: none;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    transition: .25s all ease;
+}
+
+.custom-select-wrapper:hover::after {
+    color: #555555;
+}
+
+#right-heading,
+.score-input {
+    float: right;
+}
+
+/* Table footer */
+
+#results table tfoot tr > *:nth-child(odd) {
+    background-color: transparent;
+    color: #ffffff;
+    padding: 20px 0px;
+}
+
+#results table tfoot tr > *:nth-child(even) {
+    background-color: transparent;
+    color: #ffffff;
+    padding: 20px 0px;
+}
+
+
+#results table tfoot {
+    background-color: #452993 !important;
+    color: #fff;
+}
+#results table tfoot tr > *:nth-child(1) {
+    border-top-left-radius: 0px;
+    border-bottom-left-radius: 10px;
+}
+#results table tfoot tr > *:last-child {
+    border-top-right-radius: 0px;
+    border-bottom-right-radius: 10px;
+}
+
+
+/* Misc */
+ul {
+    list-style: disc !important;
+    padding-left: 30px !important;
+    margin-top: 10px !important;
+}
+
+#addAttributeRow, 
+#addProductSectionContainer {
+    height: 50px;
+}
+
+.footer-tagline {
+    font-size: clamp(17px, 2vw, 20px);
+}
+
+/* ---------------- RESPONSIVE FIXES ---------------- */
+
+@media (max-width: 1024px) {
+    main {
+        padding-left: 20px !important;
+        padding-right: 20px !important;
+    }
+}
+
+@media (max-width: 768px) {
+    header {
+        height: auto !important;
+        padding: 20px !important;
+    }
+
+    .search-bar-wrapper {
+        max-width: 100% !important;
+    }
+
+    #search-result-section > div {
+        flex-direction: column;
+        gap: 20px;
+    }
+}
+
+@media (max-width: 480px) {
+    .search-bar-wrapper button {
+        width: auto;
+        padding-left: 20px;
+        padding-right: 20px;
+    }
+}
